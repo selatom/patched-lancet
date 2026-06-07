@@ -42,10 +42,62 @@
 #include <lancet/timestamping.h>
 #include <lancet/tp_proto.h>
 
+#include <signal.h>
+
 static __thread struct tcp_connection *connections;
 static __thread int epoll_fd;
 static __thread struct pending_tx_timestamps *per_conn_tx_timestamps;
 static __thread uint32_t conn_idx = 0;
+
+#ifndef TCP_QUEUE_STATE
+#define TCP_QUEUE_STATE 100
+#endif
+
+
+struct tcp_queue_state_snapshot {
+    uint64_t unacked_time_ns;
+    uint64_t unacked_integral;
+    uint64_t unacked_total;
+    uint64_t unacked_size;
+    uint64_t unread_time_ns;
+    uint64_t unread_integral;
+    uint64_t unread_total;
+    uint64_t unread_size;
+    uint64_t ackdelay_time_ns;
+    uint64_t ackdelay_integral;
+    uint64_t ackdelay_total;
+    uint64_t ackdelay_size;
+};
+
+static volatile int snapshot_requested = 0;
+static int snapshot_count = 0;
+
+static void snapshot_handler(int sig) {
+    (void)sig;
+    snapshot_requested = 1;
+}
+
+static void take_snapshot_if_requested(struct tcp_connection *conns) {
+    if (!snapshot_requested) return;
+    snapshot_requested = 0;
+
+    struct tcp_queue_state_snapshot snap;
+    socklen_t optlen = sizeof(snap);
+    memset(&snap, 0, sizeof(snap));
+    getsockopt(conns[0].fd, IPPROTO_TCP, TCP_QUEUE_STATE, &snap, &optlen);
+
+    char fname[64];
+    snprintf(fname, sizeof(fname), "/tmp/lancet_qstate_%d.txt", snapshot_count++);
+    FILE *f = fopen(fname, "w");
+    if (f) {
+        fprintf(f, "%lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu\n",
+            snap.unacked_time_ns, snap.unacked_integral, snap.unacked_total, snap.unacked_size,
+            snap.unread_time_ns, snap.unread_integral, snap.unread_total, snap.unread_size,
+            snap.ackdelay_time_ns, snap.ackdelay_integral, snap.ackdelay_total, snap.ackdelay_size);
+        fclose(f);
+    }
+}
+
 
 static inline struct tcp_connection *pick_conn()
 {
@@ -255,6 +307,8 @@ static void throughput_tcp_main(void)
 	pthread_barrier_wait(&conn_open_barrier);
 	set_conn_open(1);
 
+	signal(SIGUSR1, snapshot_handler);
+
 	next_tx = time_ns();
 	while (1) {
 		if (!should_load()) {
@@ -343,6 +397,8 @@ static void throughput_tcp_main(void)
 			} else
 				assert(0);
 		}
+
+		take_snapshot_if_requested(connections);
 	}
 }
 
