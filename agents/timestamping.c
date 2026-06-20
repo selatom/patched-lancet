@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <time.h>
 #include <linux/errqueue.h>
 #include <linux/net_tstamp.h>
 #include <linux/net_tstamp.h>

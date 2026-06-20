@@ -25,6 +25,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <pthread.h>
 
 #include <lancet/app_proto.h>
 #include <lancet/rand_gen.h>
