@@ -24,6 +24,10 @@
  */
 #define _GNU_SOURCE
 #include <unistd.h>
+#include <sys/syscall.h>
+#ifndef gettid
+#define gettid() ((pid_t)syscall(SYS_gettid))
+#endif
 
 #include <assert.h>
 #include <math.h>
@@ -36,7 +40,7 @@
 #include <lancet/rand_gen.h>
 
 static __thread unsigned int thread_rand_seed;
-static __thread struct drand48_data thread_drand_seed;
+static __thread unsigned short thread_xsubi[3];
 
 /*
  * Deterministic distribution
@@ -49,7 +53,9 @@ static inline void init_thread_rand_if_needed(void)
 {
 	if (!thread_rand_seed) {
 		thread_rand_seed = time(NULL) + gettid() * 12345;
-		srand48_r(thread_rand_seed, &thread_drand_seed);
+		thread_xsubi[0] = thread_rand_seed & 0xFFFF;
+		thread_xsubi[1] = (thread_rand_seed >> 16) & 0xFFFF;
+		thread_xsubi[2] = gettid() & 0xFFFF;
 	}
 }
 
@@ -61,10 +67,8 @@ int get_thread_rand(void)
 
 double get_thread_drand48(void)
 {
-	double res;
 	init_thread_rand_if_needed();
-	drand48_r(&thread_drand_seed, &res);
-	return res;
+	return erand48(thread_xsubi);
 }
 
 static double fixed_inv_cdf(struct rand_gen *gen,

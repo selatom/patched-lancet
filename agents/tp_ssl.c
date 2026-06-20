@@ -56,11 +56,10 @@ static int ssl_init(void)
 
 	// SSL context for the process. All connections will share one
 	// process level context.
-	ssl_ctx = SSL_CTX_new(TLS_client_method());
+	ssl_ctx = SSL_CTX_new(SSLv23_client_method());
 	if (!ssl_ctx)
 		return -1;
 
-	SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
 
 	/* Don't verify the certificate */
 	SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);

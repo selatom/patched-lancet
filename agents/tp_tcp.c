@@ -692,6 +692,7 @@ static void symmetric_tcp_main(void)
 
 	pthread_barrier_wait(&conn_open_barrier);
 	set_conn_open(1);
+	signal(SIGUSR1, snapshot_handler);
 
 	next_tx = time_ns();
 	while (1) {
@@ -785,12 +786,21 @@ static void symmetric_tcp_main(void)
 				assert(ret == 0);
 				long diff = latency.tv_nsec + latency.tv_sec * 1e9;
 				add_latency_sample(diff, &pending_tx->time);
+				{
+					static FILE *rtt_log = NULL;
+					if (!rtt_log) rtt_log = fopen("/tmp/lancet_rtt.log", "w");
+					if (rtt_log) {
+						fprintf(rtt_log, "%ld\n", diff);
+						fflush(rtt_log);
+					}
+				}
 
 				/* Bookkeeping */
 				add_throughput_rx_sample(read_res);
 			} else
 				assert(0);
 		}
+		take_snapshot_if_requested(connections);
 	}
 }
 
