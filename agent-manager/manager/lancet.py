@@ -29,7 +29,10 @@ import pathlib
 
 from manager.proto import LancetProto
 from manager.agentcontroller import LancetController
-from manager.stats import aggregate_throughput, aggregate_latency
+
+def _lazy_import_stats():
+    from manager.stats import aggregate_throughput, aggregate_latency
+    return aggregate_throughput, aggregate_latency
 
 MANAGER_PORT = 5001
 this_dir = pathlib.Path(__file__).absolute().parent
@@ -100,12 +103,14 @@ class LancetServer:
             if msg.info == 0:
                 self.end_time = time.time()
                 throughput_stats = self.controller.get_stats()
+                aggregate_throughput, aggregate_latency = _lazy_import_stats()
                 agg_stats = aggregate_throughput(throughput_stats)
                 agg_stats.duration = self.end_time - self.start_time
                 self.proto.reply_throughput(agg_stats)
             elif msg.info == 1:
                 self.end_time = time.time()
                 latency_stats = self.controller.get_stats()
+                aggregate_throughput, aggregate_latency = _lazy_import_stats()
                 try:
                     agg_stats = aggregate_latency(latency_stats,
                             self.controller.get_per_thread_samples())
